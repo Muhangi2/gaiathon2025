@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import MapViewer from '@/components/MapViewer'
+import dynamic from 'next/dynamic'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
@@ -35,6 +35,8 @@ const getSeverityColor = (severity: string) => {
       return 'bg-gray-500'
   }
 }
+
+const MapViewer = dynamic(() => import('@/components/MapViewer'), { ssr: false })
 
 export default function Dashboard() {
   const [currentAlert, setCurrentAlert] = useState(alerts[0])
