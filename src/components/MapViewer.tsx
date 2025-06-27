@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { MapContainer, TileLayer, GeoJSON, Marker, Popup, LayersControl } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
-import { LatLngExpression, Icon, Feature, GeoJSON as GeoJSONType } from 'leaflet'
+import { LatLngExpression, Icon } from 'leaflet'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import type { Feature as GeoJsonFeature, FeatureCollection, Polygon } from 'geojson'
 
 // Fix for default marker icons in Next.js
 const icon = new Icon({
@@ -23,58 +24,64 @@ interface ZoneProperties {
   risk: 'high' | 'medium' | 'low'
   population: number
   lastAlert: string
+  landCover?: string
 }
 
-interface ZoneFeature extends Feature {
-  properties: ZoneProperties
-}
+type ZoneFeature = GeoJsonFeature<Polygon, ZoneProperties>
 
-interface FloodZonesGeoJSON extends GeoJSONType.FeatureCollection {
-  features: ZoneFeature[]
-}
+type FloodZonesGeoJSON = FeatureCollection<Polygon, ZoneProperties>
 
-// Placeholder GeoJSON data for flood-prone areas
-const floodZonesGeoJSON: FloodZonesGeoJSON = {
+// Mock land cover GeoJSON for demo (not accurate)
+const landCoverGeoJSON: FloodZonesGeoJSON = {
   type: 'FeatureCollection',
   features: [
+    // Built-up area (red, covers most of Kampala)
     {
       type: 'Feature',
-      properties: {
-        name: 'High Risk Zone 1',
-        risk: 'high',
-        population: 15000,
-        lastAlert: '2024-03-20T10:30:00Z',
-      },
+      properties: { name: 'Built-up Area', risk: 'high', landCover: 'builtup', population: 0, lastAlert: '' },
       geometry: {
         type: 'Polygon',
         coordinates: [
           [
-            [51.505, -0.09],
-            [51.51, -0.1],
-            [51.51, -0.12],
-            [51.505, -0.12],
-            [51.505, -0.09],
+            [32.50, 0.28], [32.65, 0.28], [32.65, 0.40], [32.50, 0.40], [32.50, 0.28]
+          ],
+        ],
+      },
+    },
+    // Vegetation patches (green)
+    {
+      type: 'Feature',
+      properties: { name: 'Vegetation Patch 1', risk: 'low', landCover: 'vegetation', population: 0, lastAlert: '' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [32.54, 0.32], [32.56, 0.32], [32.56, 0.34], [32.54, 0.34], [32.54, 0.32]
           ],
         ],
       },
     },
     {
       type: 'Feature',
-      properties: {
-        name: 'Medium Risk Zone 1',
-        risk: 'medium',
-        population: 8000,
-        lastAlert: '2024-03-19T15:45:00Z',
-      },
+      properties: { name: 'Vegetation Patch 2', risk: 'low', landCover: 'vegetation', population: 0, lastAlert: '' },
       geometry: {
         type: 'Polygon',
         coordinates: [
           [
-            [51.515, -0.09],
-            [51.52, -0.1],
-            [51.52, -0.12],
-            [51.515, -0.12],
-            [51.515, -0.09],
+            [32.60, 0.36], [32.62, 0.36], [32.62, 0.38], [32.60, 0.38], [32.60, 0.36]
+          ],
+        ],
+      },
+    },
+    // Water (Lake Victoria, blue, southeast)
+    {
+      type: 'Feature',
+      properties: { name: 'Lake Victoria', risk: 'low', landCover: 'water', population: 0, lastAlert: '' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [
+          [
+            [32.60, 0.28], [32.65, 0.28], [32.65, 0.32], [32.60, 0.32], [32.60, 0.28]
           ],
         ],
       },
@@ -108,26 +115,17 @@ const monitoringStations: MonitoringStation[] = [
   },
 ]
 
-const getColorByRisk = (risk: string) => {
-  switch (risk) {
-    case 'high':
-      return '#ef4444'
-    case 'medium':
-      return '#f59e0b'
-    case 'low':
-      return '#10b981'
-    default:
-      return '#6b7280'
-  }
-}
-
-const style = (feature: ZoneFeature) => {
+const style = (feature?: GeoJsonFeature) => {
+  const landCover = feature?.properties?.landCover
+  let fillColor = '#ef4444' // default red
+  if (landCover === 'vegetation') fillColor = '#22c55e' // green
+  if (landCover === 'water') fillColor = '#60a5fa' // blue
   return {
-    fillColor: getColorByRisk(feature.properties.risk),
-    weight: 2,
+    fillColor,
+    weight: 1,
     opacity: 1,
-    color: 'white',
-    dashArray: '3',
+    color: 'black',
+    dashArray: '',
     fillOpacity: 0.7,
   }
 }
@@ -145,9 +143,9 @@ export default function MapViewer() {
     return null
   }
 
-  const center: LatLngExpression = [51.505, -0.09]
+  const center: LatLngExpression = [1.3733, 32.2903] // Center on Uganda
 
-  const filteredZones = floodZonesGeoJSON.features.filter((zone) =>
+  const filteredZones = landCoverGeoJSON.features.filter((zone) =>
     zone.properties.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
@@ -181,8 +179,12 @@ export default function MapViewer() {
 
       <MapContainer
         center={center}
-        zoom={13}
+        zoom={7}
         style={{ height: '100%', width: '100%' }}
+        maxBounds={[[-1.5, 29.5], [4.3, 35.0]]}
+        maxBoundsViscosity={1.0}
+        minZoom={7}
+        maxZoom={13}
       >
         <LayersControl position="topright">
           <LayersControl.BaseLayer checked name="OpenStreetMap">
@@ -200,14 +202,12 @@ export default function MapViewer() {
         </LayersControl>
 
         <GeoJSON
-          data={floodZonesGeoJSON}
+          data={landCoverGeoJSON}
           style={style}
           onEachFeature={(feature, layer) => {
             layer.bindPopup(`
               <b>${feature.properties.name}</b><br>
-              Risk Level: ${feature.properties.risk}<br>
-              Population: ${feature.properties.population}<br>
-              Last Alert: ${new Date(feature.properties.lastAlert).toLocaleString()}
+              Land Cover: ${feature.properties.landCover || 'N/A'}
             `)
           }}
         />
@@ -233,9 +233,7 @@ export default function MapViewer() {
           <Card className="p-4">
             <h3 className="font-semibold mb-2">{selectedZone.properties.name}</h3>
             <p className="text-sm text-gray-600">
-              Risk Level: {selectedZone.properties.risk}<br />
-              Population: {selectedZone.properties.population}<br />
-              Last Alert: {new Date(selectedZone.properties.lastAlert).toLocaleString()}
+              Land Cover: {selectedZone.properties.landCover || 'N/A'}
             </p>
           </Card>
         </div>
