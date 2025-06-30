@@ -3,7 +3,7 @@
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
-// Placeholder alert data
+// Alert data
 const alerts = [
   {
     id: 1,
